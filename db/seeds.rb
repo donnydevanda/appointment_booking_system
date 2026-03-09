@@ -7,3 +7,6 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+Doctor.create!(id: "D123", name: "Dr. Marten")
+Patient.create!(id: "P456", name: "Patience Patient")
