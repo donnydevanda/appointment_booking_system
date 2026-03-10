@@ -1,22 +1,27 @@
 # TASK A
-* Answered inside project => (created) migration, model, controller, routes
-* Im using SQL (justified in task B)
+* Implementation => Please refer to the code.
+* DB User => SQL, justified in Task B.
+* Concurrency => Using pesimistic locking to prevent race conditions.
 
 # TASK B
-* a. When records are millions
-1. Indexing: i would add compound index to make searching faster ([:doctor_id, :start_time, :end_time] and [:patient_id, :start_time, :end_time]).
-2. Pagination: i would implement cursor pagination since offset is slow in large datasets. it also suit this case because commonly the appointments list should display latest result first (user dont need information older than current day).
-3. Query Optimization: i would use .select() to choose necessary fields, and avoid N+1 by using .includes(:doctor, :patient).
-* b. IMO, mongoDB is not suitable since we need solid integrity & consistency (in DB-level) and strict rules about double booking (locking). also, we dont need various data type here.
+1. Handling millions of records:
+* Indexing => I would add compound indexes to make searching faster (ex: [:doctor_id, :start_time, :end_time] for checking availability and [:patient_id, :start_time, :end_time] for showing patient history).
+* Pagination => I would implement cursor-based pagination since offset is slow in large datasets. This kind of pagination also suit this case because commonly the appointments list should display latest result first (user dont need information older than current day).
+* Query Optimization => I would use .select() to choose necessary fields, and avoid N+1 by using .includes(:doctor, :patient).
+
+2. I believe, mongoDB is not suitable. My reasoning:
+* We need solid integrity & consistency (in DB-level).
+* We need strict rules about double booking (locking).
+* We need relational data model without various data types.
 
 # Task C
-* a. Flow (assuming user is logged in):
-1. Select doctors
-2. Select available date
-3. Confirm -> button will be disabled (prevent double submission)
-4. Send POST /appointments
-5. Fetch result -> if 200 {show success message} | if error {show error message}
-* b. Psuedo-code
+User Flow (assuming user is authenticated):
+1. Select doctors & available slot (client-side prevention to overlapping appointments).
+2. User press 'Confirm' -> Button will be disabled (client-side preventation to double submission).
+4. Send POST /appointments request.
+5. Fetch result -> If success, show success message. If error, show error message.
+
+Psuedo-code
  ```javascript
   async function confirmAppointment() {
     const button = document.getElementById('btn-confirm');
@@ -24,30 +29,42 @@
     button.innerText = 'Please Wait...';
   
     try {
-      const response = await fetch('/appointments', { ... });
-      if (!response.ok) throw await response.json();
-      alert('Success!');
+     const response = await fetch('/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ... }) 
+     });
+     if (!response.ok) throw await response.json();
+     alert('Appointment Confirmed!');
     } catch (error) {
-      alert(error.errors.join(', '));
-      button.disabled = false;
+      const message = error.errors ? error.errors.join(', ') : 'Something went wrong';
+      alert(message);
     }
   }
 ```
 
 # Task D
-* a. Production only errors
-1. Check errbit / exception notification mails
-2. Check the log, manually, since we have no tools :)
-3. Filtering the logs by timeframe, and find request ID (copy it to local, then analyze)
-4. Trace each transaction and give eyes to DB process time
-* b. setup log, warnings if related to business-flow errors, and critical if its system errors. then monitor it (and alerting) using NewRelic
-* c. simplest investigation => check APM transaction load / accessing log to gain information about each request (db load, insert time, etc). mitigation => caching / scaling / optimizing
+1. Investigating unreproducible production errors.
+* Check errbit (or other error tracking tools) / exception notification mail.
+* If no tools available, I would access application logs on the server.
+* Filtering the logs by timeframe, and find request ID (copy it to local, then analyze).
+* Trace each transaction while also give eyes to DB process time.
+2. Logging & Monitoring.
+* Logging => Differentiate between business logic errors (warn) and system errors (fatal).
+* Monitoring => Setup alert for indicators such as high error rate, slow transaction, and slow query.
+3. Investigation & Mitigation.
+* Investigation => Check APM data and identify the bottleneck.
+* Mitigation => Immediately: add missing indexes or scale resource. Long Term: Implement caching, set background process for non-blocking operations, code / query optimization.
 
 # Task E
-* a. add authentication and authorization.
-* b. never commit .env / any credentials to repo. modern approach use centralized secret management such as vault or infisical
-* c. yes, we need it to prevent abuse / DoS. it's a vital feature, we don't want the real user cant make appointment because the slot is fully filled with bot / fake appointment
+1. Add authentication via session/JWT, then authorize. Patient_id should be obtained from current_user.id, not given params.
+2. Never commit credential (.env, keys, etc) to repository, that should only exist on development environment. In production, use centralized secret management like Vault or Infisical, then inject it as environmental variables.
+3. Yes, absolutely. We need to prevent DoS and bots from filling or scanning all available appointment slots.
 
 # Task F
-* a. for this task, no. in office i rarely use AI to maintain my coding sharpness, it's also limited due to company regulation and confidentiality. in my freelance / side project, yes, especially when i want to focus on the 'business' aspects
-* b. honestly, i believe this kind of task can be easily solved using AI-generated code. but, something that we should not rely solely on AI is the part of making validation, succes n error response (if we have some agreed standardization), authentication
+1. For this task, no. In office, I rarely use AI because I need to maintain my coding sharpness. It's also limited due to company regulation and confidentiality. In my freelance / side project, yes, especially when I want to focus on the 'business' aspects or eliminating 'dirty works'.
+2. I believe this kind of task can be easily solved using AI-generated code. However, for this kind of task, there is something that we should not rely solely on AI. My lists:
+* Business flow part such as the making appointment validation (and finding what suits best).
+* Contain lot of 'secret' such as API request that has a chance of security leak.
+* When we have our own standardization such as for the request and response.
+* Authorization, since it need human as the rule-maker.
